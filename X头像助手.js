@@ -6,8 +6,9 @@
 // @downloadURL  https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @description  X粉丝头像自动采集工具（时间顺序版）
 // @author       MoAEIOU
-// @match        https://x.com/*
-// @match        https://twitter.com/*
+// @match        https://x.com/*/following
+// @match        https://x.com/*/followers
+// @match        https://x.com/*/verified_followers
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
