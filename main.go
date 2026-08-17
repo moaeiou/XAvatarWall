@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultConfigFile = "avatars.toml"
+	defaultConfigFile = "" // 空表示自动选用最新的 avatar_YYYYMMDDHHMMSS.toml
 	defaultOutputDir  = ""
 	defaultOutName    = "fans_grid.png"
 
@@ -99,10 +99,10 @@ func main() {
 		if resolveErr != nil {
 			fatal("%v", resolveErr)
 		}
-		if cfg != *configFile {
-			fmt.Printf("未找到 %s，改用最新的 %s\n", *configFile, cfg)
-			*configFile = cfg
+		if !configExplicit {
+			fmt.Printf("使用 %s\n", cfg)
 		}
+		*configFile = cfg
 		paths, tempDir, err = network.DownloadAvatarsFromConfig(ctx, *configFile, *workers, *proxy)
 		if tempDir != "" {
 			defer os.RemoveAll(tempDir)
@@ -197,57 +197,52 @@ func fatal(format string, args ...any) {
 	os.Exit(1)
 }
 
-// resolveConfig 在默认 avatars.toml 不存在时，选用当前目录里最新的 X_avatar_*.toml / *.toml。
+// resolveConfig：未指定 -config 时选用当前目录最新的 avatar_YYYYMMDDHHMMSS.toml。
 func resolveConfig(path string, explicit bool) (string, error) {
-	if _, err := os.Stat(path); err == nil {
+	path = strings.TrimSpace(path)
+	if explicit {
+		if _, err := os.Stat(path); err != nil {
+			return "", fmt.Errorf("找不到配置文件：%s", path)
+		}
 		return path, nil
 	}
-	if explicit {
-		return "", fmt.Errorf("找不到配置文件：%s", path)
+	if path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
 	}
-
-	dir := filepath.Dir(path)
-	if dir == "" {
-		dir = "."
+	dir := "."
+	if path != "" {
+		dir = filepath.Dir(path)
+		if dir == "" {
+			dir = "."
+		}
 	}
 	if found := findLatestTOML(dir); found != "" {
 		return found, nil
 	}
-	return "", fmt.Errorf("找不到 %s，当前目录也没有可导入的 TOML（油猴脚本导出的文件）", path)
+	return "", fmt.Errorf("当前目录没有 avatar_YYYYMMDDHHMMSS.toml（请先用油猴脚本导出）")
 }
 
 func findLatestTOML(dir string) string {
-	matches, err := filepath.Glob(filepath.Join(dir, "X_avatar_*.toml"))
-	if err != nil {
-		matches = nil
+	if found := newestByName(dir, "avatar_*.toml"); found != "" {
+		return found
 	}
-	if len(matches) == 0 {
-		all, err := filepath.Glob(filepath.Join(dir, "*.toml"))
-		if err != nil {
-			return ""
-		}
-		var filtered []string
-		for _, p := range all {
-			if strings.EqualFold(filepath.Base(p), "go.toml") {
-				continue
-			}
-			filtered = append(filtered, p)
-		}
-		matches = filtered
+	if found := newestByName(dir, "X_avatar_*.toml"); found != "" {
+		return found
 	}
-	if len(matches) == 0 {
+	return ""
+}
+
+func newestByName(dir, pattern string) string {
+	matches, err := filepath.Glob(filepath.Join(dir, pattern))
+	if err != nil || len(matches) == 0 {
 		return ""
 	}
-	var latest string
-	var latestMod int64
-	for _, p := range matches {
-		st, err := os.Stat(p)
-		if err != nil {
-			continue
-		}
-		if latest == "" || st.ModTime().UnixNano() > latestMod {
+	latest := matches[0]
+	for _, p := range matches[1:] {
+		if filepath.Base(p) > filepath.Base(latest) {
 			latest = p
-			latestMod = st.ModTime().UnixNano()
 		}
 	}
 	return latest
@@ -257,12 +252,11 @@ func findLatestTOML(dir string) string {
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "用法：xavatarwall [参数]")
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "默认读取当前目录下的 avatars.toml（油猴脚本「X头像助手.js」导出的文件），自动下载头像、去重并拼图。")
-	fmt.Fprintln(w, "若没有 avatars.toml，会自动选用当前目录里最新的 X_avatar_*.toml。")
-	fmt.Fprintln(w, "示例：xavatarwall -config X_avatar_v0.7_1786883236271.toml -output fans_grid.png")
+	fmt.Fprintln(w, "默认读取当前目录里最新的 avatar_YYYYMMDDHHMMSS.toml（油猴脚本「X头像助手.js」导出），自动下载头像、去重并拼图。")
+	fmt.Fprintln(w, "示例：xavatarwall -config avatar_20260817153000.toml -output fans_grid.png")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "参数：")
-	fmt.Fprintln(w, "  -config <文件>         头像数据 TOML 文件（默认 avatars.toml，不存在则自动挑选）")
+	fmt.Fprintln(w, "  -config <文件>         头像数据 TOML 文件（默认自动选用最新的 avatar_*.toml）")
 	fmt.Fprintln(w, "  -output <路径>         输出图片路径（默认 fans_grid.png）")
 	fmt.Fprintln(w, "  -proxy <地址>          下载代理，支持 http/https/socks5（默认直连）")
 	fmt.Fprintln(w, "  -input-dir <目录>      从本地目录读取头像并拼图（跳过下载）")

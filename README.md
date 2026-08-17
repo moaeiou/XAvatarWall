@@ -25,9 +25,9 @@ VCR：<https://youtu.be/KJUmJKQRleM?si=DPjoqWyfBJ0npA3G>
 
 将`X头像助手.js`这个脚本粘贴进篡改猴，然后打开<https://x.com/你的用户名/followers>
 
-点击`开始采集`并滚动到最下面，脚本截获了所有头像之后点击`导出为TOML文件`（默认文件名 `avatars.toml`）。刷新页面不会丢记录，可用「清空记录」重新开始。
+点击`开始采集`并滚动到最下面，脚本截获了所有头像之后点击`导出为TOML文件`（文件名形如 `avatar_20260817153000.toml`）。刷新页面不会丢记录，可用「清空记录」重新开始。
 
-把 TOML 和可执行文件放进同一个文件夹，直接运行即可。若目录里没有 `avatars.toml`，程序会自动选用最新的 `X_avatar_*.toml`。
+把 TOML 和可执行文件放进同一个文件夹，直接运行即可。不指定 `-config` 时会自动选用最新的 `avatar_*.toml`。
 
 程序读取 TOML 里的头像链接并下载到临时目录，拼完即删。也可用 `-input-dir` 直接从本地文件夹拼图。
 
@@ -37,7 +37,7 @@ VCR：<https://youtu.be/KJUmJKQRleM?si=DPjoqWyfBJ0npA3G>
 
 | 参数                 | 默认值          | 说明                                                     |
 | -------------------- | --------------- | -------------------------------------------------------- |
-| `-config`            | `avatars.toml`  | 油猴脚本导出的头像数据 TOML 文件；缺省时自动挑选最新导出 |
+| `-config`            | 自动            | 油猴脚本导出的 TOML；不填则选用最新的 `avatar_*.toml`    |
 | `-output`            | `fans_grid.png` | 输出图片路径（固定输出 PNG）                             |
 | `-proxy`             | 空（直连）      | 下载代理，支持 http 和 socks5。自动识别类型              |
 | `-input-dir`         | 空              | 从本地目录读取头像并拼图（跳过下载）                     |

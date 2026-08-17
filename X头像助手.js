@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X头像助手
 // @namespace    https://tampermonkey.net/
-// @version      0.1.3
+// @version      0.1.4
 // @updateURL    https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @downloadURL  https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @description  X粉丝头像自动采集工具（时间顺序版）
@@ -112,6 +112,19 @@
         });
       }
     } catch (_) {}
+  }
+
+  function exportStamp() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, "0");
+    return (
+      d.getFullYear() +
+      p(d.getMonth() + 1) +
+      p(d.getDate()) +
+      p(d.getHours()) +
+      p(d.getMinutes()) +
+      p(d.getSeconds())
+    );
   }
 
   function tomlString(s) {
@@ -354,7 +367,7 @@
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = "avatars.toml";
+    a.download = "avatar_" + exportStamp() + ".toml";
     a.click();
 
     URL.revokeObjectURL(url);
