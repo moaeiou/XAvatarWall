@@ -14,8 +14,25 @@ import (
 
 // buildTransport 根据 -proxy 参数创建 HTTP 传输层，自动识别代理类型。
 // 支持 http://、https://、socks5://、socks5h://；不带协议前缀时默认按 HTTP 代理处理。
+func newBaseTransport() *http.Transport {
+	// 不走环境变量代理：-proxy 为空表示直连，与帮助文档一致。
+	return &http.Transport{
+		Proxy: nil,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   16,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+}
+
 func buildTransport(proxyURL string) (*http.Transport, error) {
-	transport := &http.Transport{}
+	transport := newBaseTransport()
 	proxyURL = strings.TrimSpace(proxyURL)
 	if proxyURL == "" {
 		return transport, nil

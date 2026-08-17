@@ -34,19 +34,13 @@ type ProgressFunc func(done, total int)
 //
 // 即优先保证列数，行数按需补齐，尽量接近正方形整体比例。
 func BuildGrid(paths []string, outputPath string, opts GridOptions, progress ProgressFunc) error {
+	paths = filterReadable(paths)
 	n := len(paths)
 	if n == 0 {
 		return fmt.Errorf("没有可用图片")
 	}
 
-	cols := opts.Cols
-	if cols <= 0 {
-		cols = int(math.Ceil(math.Sqrt(float64(n))))
-	}
-	if cols <= 0 {
-		cols = 1
-	}
-	rows := int(math.Ceil(float64(n) / float64(cols)))
+	cols, rows := gridShape(n, opts.Cols)
 
 	thumb := opts.ThumbSize
 	spacing := opts.Spacing
@@ -82,6 +76,19 @@ func BuildGrid(paths []string, outputPath string, opts GridOptions, progress Pro
 	}
 
 	return nil
+}
+
+// gridShape 计算行列数：colsHint<=0 时取 ceil(sqrt(n))，尽量接近正方形。
+func gridShape(n, colsHint int) (cols, rows int) {
+	cols = colsHint
+	if cols <= 0 {
+		cols = int(math.Ceil(math.Sqrt(float64(n))))
+	}
+	if cols <= 0 {
+		cols = 1
+	}
+	rows = int(math.Ceil(float64(n) / float64(cols)))
+	return cols, rows
 }
 
 // pasteThumbnail 处理单张图片（中心裁剪为正方形 -> 高质量缩放 -> 粘贴到画布对应格子）

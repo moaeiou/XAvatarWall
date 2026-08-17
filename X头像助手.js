@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         X头像助手
 // @namespace    https://tampermonkey.net/
-// @version      0.1.2
-// @updateURL    https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/%E4%B8%80%E9%94%AE%E4%B8%8B%E8%BD%BD%E5%A4%B4%E5%83%8F.js
-// @downloadURL  https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/%E4%B8%80%E9%94%AE%E4%B8%8B%E8%BD%BD%E5%A4%B4%E5%83%8F.js
+// @version      0.1.3
+// @updateURL    https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
+// @downloadURL  https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @description  X粉丝头像自动采集工具（时间顺序版）
 // @author       MoAEIOU
 // @match        https://x.com/*
@@ -18,9 +18,31 @@
   if (window.XAvatar) return;
   window.XAvatar = true;
 
-  const NO_NEW_STOP_THRESHOLD = 6;
+  const NO_NEW_STOP_THRESHOLD = 10;
+  const NO_NEW_FORCE_STOP = 20;
   const SCROLL_DELAY_MIN = 1800;
   const SCROLL_DELAY_JITTER = 1200;
+  const STORE_KEY = "xavatar-users-v1";
+  const RESERVED = new Set([
+    "home",
+    "explore",
+    "notifications",
+    "messages",
+    "i",
+    "settings",
+    "search",
+    "compose",
+    "login",
+    "signup",
+    "tos",
+    "privacy",
+    "hashtag",
+    "intent",
+    "share",
+    "jobs",
+    "about",
+    "download",
+  ]);
 
   let running = false;
   let users = new Map();
@@ -29,6 +51,76 @@
 
   function sleep(t) {
     return new Promise((r) => setTimeout(r, t));
+  }
+
+  function isListPage() {
+    return /\/(followers|following|verified_followers)\/?$/.test(
+      location.pathname,
+    );
+  }
+
+  function isNearBottom() {
+    const el = document.scrollingElement || document.documentElement;
+    return el.scrollTop + window.innerHeight >= el.scrollHeight - 120;
+  }
+
+  function upgradeAvatar(url) {
+    if (!url) return "";
+    let out = url.replace(
+      /_(mini|normal|bigger|reasonably_small|200x200|x96|96x96)\./,
+      "_400x400.",
+    );
+    out = out.replace(
+      /([?&]name=)(mini|normal|bigger|reasonably_small|200x200|x96|96x96)\b/i,
+      "$1400x400",
+    );
+    return out;
+  }
+
+  function extractUsername(cell) {
+    const links = cell.querySelectorAll('a[href^="/"]');
+    for (const a of links) {
+      const href = (a.getAttribute("href") || "").split("?")[0];
+      const m = href.match(/^\/([A-Za-z0-9_]{1,15})(?:\/|$)/);
+      if (!m) continue;
+      const username = m[1];
+      if (RESERVED.has(username.toLowerCase())) continue;
+      return username;
+    }
+    return "";
+  }
+
+  function saveUsers() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify([...users.values()]));
+    } catch (_) {}
+  }
+
+  function loadUsers() {
+    try {
+      const raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr)) return;
+      for (const u of arr) {
+        if (!u || !u.username) continue;
+        users.set(u.username, {
+          username: u.username,
+          avatar: upgradeAvatar(u.avatar || ""),
+          time: u.time || Date.now(),
+          order: u.order || users.size + 1,
+        });
+      }
+    } catch (_) {}
+  }
+
+  function tomlString(s) {
+    return String(s)
+      .replace(/\\/g, "\\\\")
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, "\\n")
+      .replace(/\r/g, "\\r")
+      .replace(/\t/g, "\\t");
   }
 
   const style = document.createElement("style");
@@ -122,6 +214,10 @@
     .xa-btn-export {
       background: #17bf63;
     }
+
+    .xa-btn-clear {
+      background: #536471;
+    }
   `;
   document.head.appendChild(style);
 
@@ -143,6 +239,7 @@
     <button class="xa-btn xa-btn-start" id="xa-start">开始采集</button>
     <button class="xa-btn xa-btn-stop" id="xa-stop">停止</button>
     <button class="xa-btn xa-btn-export" id="xa-export">导出为TOML文件</button>
+    <button class="xa-btn xa-btn-clear" id="xa-clear">清空记录</button>
   `;
   document.body.appendChild(panel);
 
@@ -150,19 +247,22 @@
     panel.classList.toggle("xa-panel-open");
   };
 
+  function refreshCounts() {
+    document.querySelector("#xa-count").textContent = users.size;
+    document.querySelector("#xa-avatar").textContent = [
+      ...users.values(),
+    ].filter((u) => u.avatar).length;
+  }
+
   function scan() {
     const before = users.size;
 
     document.querySelectorAll('[data-testid="UserCell"]').forEach((cell) => {
-      const a = cell.querySelector('a[href^="/"]');
-      if (!a) return;
-
-      const username = a.getAttribute("href").replace("/", "").split("/")[0];
+      const username = extractUsername(cell);
       if (!username) return;
 
       const img = cell.querySelector("img");
-      const avatar = img ? img.src || "" : "";
-
+      const avatar = upgradeAvatar(img ? img.src || "" : "");
       if (!avatar) return;
 
       const existing = users.get(username);
@@ -181,11 +281,8 @@
 
     const added = users.size - before;
     noNew = added === 0 ? noNew + 1 : 0;
-
-    document.querySelector("#xa-count").textContent = users.size;
-    document.querySelector("#xa-avatar").textContent = [
-      ...users.values(),
-    ].filter((u) => u.avatar).length;
+    refreshCounts();
+    if (added > 0) saveUsers();
   }
 
   async function run() {
@@ -194,9 +291,10 @@
       scan();
       document.querySelector("#xa-scroll").textContent = scrollCount;
 
-      if (noNew >= NO_NEW_STOP_THRESHOLD) {
+      if (noNew >= NO_NEW_FORCE_STOP || (noNew >= NO_NEW_STOP_THRESHOLD && isNearBottom())) {
         document.querySelector("#xa-status").textContent = "没有新增，自动停止";
         running = false;
+        saveUsers();
         break;
       }
 
@@ -210,6 +308,10 @@
 
   document.querySelector("#xa-start").onclick = () => {
     if (running) return;
+    if (!isListPage()) {
+      document.querySelector("#xa-status").textContent =
+        "当前不像粉丝/关注列表页，仍继续采集";
+    }
     running = true;
     scrollCount = 0;
     noNew = 0;
@@ -218,19 +320,30 @@
 
   document.querySelector("#xa-stop").onclick = () => {
     running = false;
+    saveUsers();
     document.querySelector("#xa-status").textContent = "已停止";
+  };
+
+  document.querySelector("#xa-clear").onclick = () => {
+    if (running) return;
+    users = new Map();
+    scrollCount = 0;
+    noNew = 0;
+    try {
+      localStorage.removeItem(STORE_KEY);
+    } catch (_) {}
+    refreshCounts();
+    document.querySelector("#xa-status").textContent = "已清空";
   };
 
   document.querySelector("#xa-export").onclick = () => {
     const list = [...users.values()].filter((u) => u.avatar);
 
-    const tomlString = (s) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-
     const lines = [];
     for (const u of list) {
       lines.push("[[avatar]]");
       lines.push('username = "' + tomlString(u.username) + '"');
-      lines.push('avatar = "' + tomlString(u.avatar) + '"');
+      lines.push('avatar = "' + tomlString(upgradeAvatar(u.avatar)) + '"');
       lines.push("time = " + u.time);
       lines.push("order = " + u.order);
       lines.push("");
@@ -241,10 +354,11 @@
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = "X_avatar_" + Date.now() + ".toml";
+    a.download = "avatars.toml";
     a.click();
 
     URL.revokeObjectURL(url);
+    saveUsers();
   };
 
   let dragging = false;
@@ -271,5 +385,11 @@
     dragging = false;
   };
 
+  loadUsers();
+  refreshCounts();
+  if (users.size > 0) {
+    document.querySelector("#xa-status").textContent =
+      "已恢复上次记录 " + users.size + " 人";
+  }
   setTimeout(scan, 2000);
 })();

@@ -3,6 +3,9 @@ package image
 import (
 	"fmt"
 	"image/color"
+	"os"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -17,23 +20,49 @@ var ValidExts = map[string]bool{
 	".webp": true,
 }
 
-// ParseHexColor 解析形如 "#RRGGBB" 的十六进制颜色字符串
+// ParseHexColor 解析十六进制颜色：支持 #RRGGBB、RRGGBB、#RGB、RGB。
 func ParseHexColor(s string) (color.RGBA, error) {
 	s = strings.TrimSpace(s)
-	if len(s) != 7 || s[0] != '#' {
-		return color.RGBA{}, fmt.Errorf("颜色格式应为 #RRGGBB，实际为 %q", s)
+	s = strings.TrimPrefix(s, "#")
+	switch len(s) {
+	case 3:
+		s = string([]byte{s[0], s[0], s[1], s[1], s[2], s[2]})
+	case 6:
+	default:
+		return color.RGBA{}, fmt.Errorf("颜色格式应为 #RRGGBB 或 #RGB，实际为 %q", s)
 	}
-	r, err := strconv.ParseUint(s[1:3], 16, 8)
+	n, err := strconv.ParseUint(s, 16, 32)
 	if err != nil {
-		return color.RGBA{}, err
+		return color.RGBA{}, fmt.Errorf("颜色格式应为 #RRGGBB 或 #RGB，实际为 %q", s)
 	}
-	g, err := strconv.ParseUint(s[3:5], 16, 8)
+	return color.RGBA{
+		R: uint8(n >> 16),
+		G: uint8(n >> 8),
+		B: uint8(n),
+		A: 255,
+	}, nil
+}
+
+// ScanDir 读取目录下支持格式的图片（不递归），按文件名排序。
+func ScanDir(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return color.RGBA{}, err
+		return nil, fmt.Errorf("读取目录失败：%w", err)
 	}
-	b, err := strconv.ParseUint(s[5:7], 16, 8)
-	if err != nil {
-		return color.RGBA{}, err
+	var paths []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !isSupportedExt(name) {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, name))
 	}
-	return color.RGBA{R: uint8(r), G: uint8(g), B: uint8(b), A: 255}, nil
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("目录中没有支持的图片：%s", dir)
+	}
+	sort.Strings(paths)
+	return paths, nil
 }
