@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X头像助手
 // @namespace    https://tampermonkey.net/
-// @version      0.1.4
+// @version      0.1.5
 // @updateURL    https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @downloadURL  https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @description  X粉丝头像自动采集工具（时间顺序版）
