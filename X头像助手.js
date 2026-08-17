@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X头像助手
 // @namespace    https://tampermonkey.net/
-// @version      0.1.5
+// @version      0.1.6
 // @updateURL    https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @downloadURL  https://raw.githubusercontent.com/moaeiou/XAvatarWall/refs/heads/main/X头像助手.js
 // @description  X粉丝头像自动采集工具（时间顺序版）
@@ -267,7 +267,15 @@
       ...users.values(),
     ].filter((u) => u.avatar).length;
   }
-
+  function applyVisibility() {
+    const show = isListPage();
+    toggleBtn.style.display = show ? "" : "none";
+    if (show) {
+      panel.style.display = "";
+    } else {
+      panel.style.display = "none";
+    }
+  }
   function scan() {
     const before = users.size;
 
@@ -305,7 +313,10 @@
       scan();
       document.querySelector("#xa-scroll").textContent = scrollCount;
 
-      if (noNew >= NO_NEW_FORCE_STOP || (noNew >= NO_NEW_STOP_THRESHOLD && isNearBottom())) {
+      if (
+        noNew >= NO_NEW_FORCE_STOP ||
+        (noNew >= NO_NEW_STOP_THRESHOLD && isNearBottom())
+      ) {
         document.querySelector("#xa-status").textContent = "没有新增，自动停止";
         running = false;
         saveUsers();
